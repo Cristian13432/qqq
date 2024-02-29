@@ -1,0 +1,78 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Voting {
+    struct Proposal {
+        string description;
+        uint256 forVotes;
+        uint256 againstVotes;
+        bool finalized;
+    }
+
+    mapping(uint256 => Proposal) public proposals;
+    mapping(address => bool) public voters;
+    uint256 public proposalCount;
+    address public owner;
+
+    event ProposalCreated(uint256 indexed proposalId, string description);
+    event Voted(uint256 indexed proposalId, bool inSupport, address voter);
+    event ProposalFinalized(uint256 indexed proposalId, bool outcome);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can perform this action");
+        _;
+    }
+
+    modifier onlyVoter() {
+        require(voters[msg.sender], "Only registered voters can perform this action");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+    }
+
+    function createProposal(string memory _description) external onlyOwner returns (uint256) {
+        uint256 proposalId = proposalCount++;
+        proposals[proposalId] = Proposal({
+            description: _description,
+            forVotes: 0,
+            againstVotes: 0,
+            finalized: false
+        });
+        emit ProposalCreated(proposalId, _description);
+        return proposalId;
+    }
+
+    function vote(uint256 _proposalId, bool _inSupport) external onlyVoter {
+        require(!proposals[_proposalId].finalized, "Proposal is already finalized");
+
+        if (_inSupport) {
+            proposals[_proposalId].forVotes++;
+        } else {
+            proposals[_proposalId].againstVotes++;
+        }
+        emit Voted(_proposalId, _inSupport, msg.sender);
+    }
+
+    function finalizeProposal(uint256 _proposalId) external onlyOwner {
+        require(!proposals[_proposalId].finalized, "Proposal is already finalized");
+
+        if (proposals[_proposalId].forVotes > proposals[_proposalId].againstVotes) {
+            // Proposal passed
+            emit ProposalFinalized(_proposalId, true);
+        } else {
+            // Proposal rejected
+            emit ProposalFinalized(_proposalId, false);
+        }
+        proposals[_proposalId].finalized = true;
+    }
+
+    function registerVoter(address _voter) external onlyOwner {
+        voters[_voter] = true;
+    }
+
+    function unregisterVoter(address _voter) external onlyOwner {
+        delete voters[_voter];
+    }
+}
